@@ -62,23 +62,20 @@ async function initDb() {
     )
   `);
 
-  const admin = await get("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  const defaultPassword = process.env.ADMIN_PASSWORD || "admin";
+  const adminHash = bcrypt.hashSync(defaultPassword, 10);
 
-  if (!admin) {
-    const defaultPassword = process.env.ADMIN_PASSWORD || "admin";
-    const hash = bcrypt.hashSync(defaultPassword, 10);
+  await run(
+    `INSERT INTO users (username, password_hash, role)
+     VALUES (?, ?, 'admin')
+     ON CONFLICT(username) DO UPDATE SET
+       password_hash = excluded.password_hash,
+       role = 'admin'`,
+    ["admin", adminHash],
+  );
 
-    await run(
-      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')",
-      ["admin", hash],
-    );
-
-    // eslint-disable-next-line no-console
-    console.log(
-      "[INIT] Default-Admin erstellt: Benutzername 'admin' / Passwort '%s'",
-      defaultPassword,
-    );
-  }
+  // eslint-disable-next-line no-console
+  console.log("[INIT] Login aktiv: Benutzername 'admin' / Passwort '%s'", defaultPassword);
 }
 
 module.exports = {

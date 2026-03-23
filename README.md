@@ -20,11 +20,12 @@ npm start
 
 Server läuft danach standardmäßig auf `http://localhost:3000`.
 
-## Initialer Admin
+## Standard-Login
 
-Beim ersten Start wird automatisch ein Admin erstellt:
+Für eine einfache Demo ist der Login immer verfügbar als:
 
 - Benutzername: `admin`
 - Passwort: `admin` (oder Wert von `ADMIN_PASSWORD`)
 
-Bitte Passwort in einer echten Umgebung sofort ändern.
+Hinweis: Beim Serverstart wird der `admin`-User auf diese Werte synchronisiert,
+damit die Anmeldung zuverlässig funktioniert.
