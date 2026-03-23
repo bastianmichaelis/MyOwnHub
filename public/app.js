@@ -29,11 +29,7 @@ async function boot() {
   const session = await api("/api/session");
   if (session.authenticated) {
     sessionUser = session.user;
-    showApp();
-    await loadSites();
-    if (isAdmin()) {
-      await loadUsers();
-    }
+    window.location.href = "/test";
   } else {
     showLogin();
   }
@@ -52,12 +48,8 @@ loginForm.addEventListener("submit", async (event) => {
   if (data.error) return notify(data.error, true);
 
   sessionUser = data.user;
-  showApp();
-  await loadSites();
-  if (isAdmin()) {
-    await loadUsers();
-  }
-  notify("Erfolgreich eingeloggt.");
+  notify("Erfolgreich eingeloggt. Weiterleitung...");
+  window.location.href = "/test";
 });
 
 logoutBtn.addEventListener("click", async () => {

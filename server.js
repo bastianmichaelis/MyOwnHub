@@ -36,6 +36,11 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+
+app.get("/test", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "test.html"));
+});
+
 app.get("/api/session", (req, res) => {
   if (!req.session.user) {
     return res.json({ authenticated: false });

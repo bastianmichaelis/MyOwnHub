@@ -29,3 +29,5 @@ Für eine einfache Demo ist der Login immer verfügbar als:
 
 Hinweis: Beim Serverstart wird der `admin`-User auf diese Werte synchronisiert,
 damit die Anmeldung zuverlässig funktioniert (unabhängig von Umgebungsvariablen).
+
+Nach erfolgreichem Login wirst du automatisch auf die geschützte Seite `/test` weitergeleitet, auf der `TEST 123` angezeigt wird.
