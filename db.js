@@ -65,7 +65,7 @@ async function initDb() {
   const admin = await get("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
 
   if (!admin) {
-    const defaultPassword = process.env.ADMIN_PASSWORD || "admin123";
+    const defaultPassword = process.env.ADMIN_PASSWORD || "admin";
     const hash = bcrypt.hashSync(defaultPassword, 10);
 
     await run(

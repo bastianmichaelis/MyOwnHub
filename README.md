@@ -25,6 +25,6 @@ Server läuft danach standardmäßig auf `http://localhost:3000`.
 Beim ersten Start wird automatisch ein Admin erstellt:
 
 - Benutzername: `admin`
-- Passwort: `admin123` (oder Wert von `ADMIN_PASSWORD`)
+- Passwort: `admin` (oder Wert von `ADMIN_PASSWORD`)
 
 Bitte Passwort in einer echten Umgebung sofort ändern.
