@@ -32,6 +32,12 @@ body {
   padding: 1rem 1.2rem;
 }
 
+.hint {
+  margin: 0.3rem 0 0.8rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

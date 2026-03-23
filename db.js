@@ -62,7 +62,7 @@ async function initDb() {
     )
   `);
 
-  const defaultPassword = process.env.ADMIN_PASSWORD || "admin";
+  const defaultPassword = "admin";
   const adminHash = bcrypt.hashSync(defaultPassword, 10);
 
   await run(
