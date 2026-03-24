@@ -62,6 +62,20 @@ async function initDb() {
     )
   `);
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  // Migration: add category column if it doesn't exist yet
+  try {
+    await run(`ALTER TABLE sites ADD COLUMN category TEXT DEFAULT 'other'`);
+  } catch (_) {
+    // Column already exists – ignore
+  }
+
   const defaultPassword = "admin";
   const adminHash = bcrypt.hashSync(defaultPassword, 10);
 
