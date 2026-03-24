@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mein Admin Hub</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="hero">
+        <h1>Zentraler Website-Hub</h1>
+        <p>Mit Login, Datenbank und Admin-Rechten für Benutzer- und Website-Verwaltung.</p>
+      </header>
+
+      <section id="login-panel" class="panel">
+        <h2>Login</h2>
+        <p class="hint">Standardzugang: <strong>admin</strong> / <strong>admin</strong></p>
+        <form id="login-form" class="form-grid">
+          <label>
+            Benutzername
+            <input id="login-username" required />
+          </label>
+          <label>
+            Passwort
+            <input id="login-password" type="password" required />
+          </label>
+          <button type="submit">Anmelden</button>
+        </form>
+      </section>
+
+      <section id="app-panel" class="panel hidden">
+        <div class="toolbar">
+          <div>
+            Angemeldet als <strong id="current-user"></strong> (<span id="current-role"></span>)
+          </div>
+          <button id="logout-btn" class="btn-secondary" type="button">Logout</button>
+        </div>
+
+        <div id="admin-area" class="admin-area hidden">
+          <h2>Admin: Benutzer hinzufügen</h2>
+          <form id="user-form" class="form-grid">
+            <label>
+              Benutzername
+              <input id="new-username" required />
+            </label>
+            <label>
+              Passwort
+              <input id="new-password" type="password" required />
+            </label>
+            <label>
+              Rolle
+              <select id="new-role">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <button type="submit">User anlegen</button>
+          </form>
+
+          <h3>Benutzerliste</h3>
+          <ul id="user-list" class="list"></ul>
+
+          <h2>Admin: Website hinzufügen/bearbeiten</h2>
+          <form id="site-form" class="form-grid">
+            <input id="edit-site-id" type="hidden" />
+            <label>
+              Titel
+              <input id="site-title" required />
+            </label>
+            <label>
+              URL
+              <input id="site-url" type="url" required />
+            </label>
+            <label class="full-row">
+              Beschreibung
+              <textarea id="site-description" rows="3"></textarea>
+            </label>
+            <button type="submit" id="site-submit">Website speichern</button>
+            <button type="button" class="btn-secondary" id="site-reset">Abbrechen</button>
+          </form>
+        </div>
+
+        <h2>Websites</h2>
+        <ul id="site-list" class="list"></ul>
+      </section>
+
+      <p id="message" class="message" aria-live="polite"></p>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
