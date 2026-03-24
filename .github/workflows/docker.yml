@@ -1,0 +1,16 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main, "claude/*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test Docker build
+        run: docker build -t myownhub:test .

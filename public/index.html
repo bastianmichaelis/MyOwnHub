@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyOwnHub</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+
+    <!-- Login screen -->
+    <div id="login-panel" class="login-screen">
+      <div class="login-card">
+        <div class="login-logo">&#127968;</div>
+        <h1 class="login-title">MyOwnHub</h1>
+        <form id="login-form">
+          <div class="field">
+            <label for="login-username">Benutzername</label>
+            <input id="login-username" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="login-password">Passwort</label>
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" class="btn-primary btn-full">Anmelden</button>
+        </form>
+        <p class="login-hint">Standard: admin / admin</p>
+      </div>
+    </div>
+
+    <!-- App shell -->
+    <div id="app-panel" class="hidden">
+
+      <header class="topbar">
+        <div class="topbar-brand">MyOwnHub</div>
+        <nav class="topbar-nav" role="navigation" aria-label="Hauptnavigation">
+          <button class="nav-btn active" data-view="hub">Hub</button>
+          <button class="nav-btn" data-view="calibre">Calibre</button>
+          <button class="nav-btn admin-only hidden" data-view="admin">Admin</button>
+          <button class="nav-btn admin-only hidden" data-view="settings">Einstellungen</button>
+        </nav>
+        <div class="topbar-right">
+          <span class="topbar-user-info">
+            <strong id="current-user"></strong>
+            <span class="role-badge" id="current-role"></span>
+          </span>
+          <button id="logout-btn" type="button" class="btn-logout">Logout</button>
+        </div>
+      </header>
+
+      <!-- Hub view -->
+      <section id="view-hub" class="view active">
+        <div class="container">
+          <div id="service-grid" class="service-grid"></div>
+        </div>
+      </section>
+
+      <!-- Calibre view -->
+      <section id="view-calibre" class="view">
+        <div class="container">
+          <div class="calibre-toolbar">
+            <h2>Bibliothek</h2>
+            <form id="calibre-search-form" class="search-bar">
+              <input id="calibre-search" placeholder="Titel, Autor suchen&hellip;" />
+              <button type="submit">Suchen</button>
+            </form>
+          </div>
+          <p id="calibre-status" class="calibre-status"></p>
+          <div id="book-grid" class="book-grid"></div>
+        </div>
+      </section>
+
+      <!-- Admin view -->
+      <section id="view-admin" class="view">
+        <div class="container">
+          <div class="admin-columns">
+
+            <div class="admin-col">
+              <h2>Benutzer</h2>
+              <form id="user-form" class="admin-form">
+                <input id="new-username" placeholder="Benutzername" required />
+                <input id="new-password" type="password" placeholder="Passwort" required />
+                <select id="new-role">
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button type="submit" class="btn-primary">Anlegen</button>
+              </form>
+              <ul id="user-list" class="admin-list"></ul>
+            </div>
+
+            <div class="admin-col">
+              <h2 id="site-form-title">Server hinzuf&uuml;gen</h2>
+              <form id="site-form" class="admin-form">
+                <input id="edit-site-id" type="hidden" />
+                <input id="site-title" placeholder="Name (z.B. Jellyfin)" required />
+                <input id="site-url" type="url" placeholder="http://192.168.1.100:8096" required />
+                <textarea id="site-description" rows="2" placeholder="Beschreibung (optional)"></textarea>
+                <div class="form-actions">
+                  <button type="submit" id="site-submit" class="btn-primary">Speichern</button>
+                  <button type="button" id="site-reset" class="btn-secondary">Abbrechen</button>
+                </div>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings view -->
+      <section id="view-settings" class="view">
+        <div class="container">
+          <div class="settings-panel">
+            <h2>Calibre Einstellungen</h2>
+            <form id="settings-form" class="settings-form">
+              <div class="field">
+                <label for="calibre-url-input">Calibre Content Server URL</label>
+                <input id="calibre-url-input" type="url" placeholder="http://192.168.1.100:8080" />
+                <p class="field-hint">URL deines Calibre Content Servers (z.B. http://192.168.1.10:8080)</p>
+              </div>
+              <div class="field">
+                <label for="calibre-library-input">Bibliothek Name</label>
+                <input id="calibre-library-input" placeholder="Calibre_Library" />
+                <p class="field-hint">Standardm&auml;&szlig;ig &quot;Calibre_Library&quot;. Anpassen falls deine Bibliothek anders hei&szlig;t.</p>
+              </div>
+              <button type="submit" class="btn-primary">Einstellungen speichern</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /app-panel -->
+
+    <p id="message" class="global-message" aria-live="polite"></p>
+
+    <script src="app.js"></script>
+  </body>
+</html>

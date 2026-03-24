@@ -1,0 +1,12 @@
+services:
+  myownhub:
+    build: .
+    image: myownhub:latest
+    container_name: myownhub
+    ports:
+      - "3000:3000"         # Host-Port:Container-Port — linke Seite anpassen falls nötig
+    volumes:
+      - ./data:/app/data    # Daten (SQLite-DB + Session-Secret) neben dieser Datei ablegen
+    environment:
+      - PORT=3000           # SESSION_SECRET wird beim ersten Start automatisch generiert
+    restart: unless-stopped
