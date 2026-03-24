@@ -1,10 +1,24 @@
 const path = require("path");
 const http = require("http");
 const https = require("https");
+const crypto = require("crypto");
+const fs = require("fs");
 const express = require("express");
 const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const { initDb, run, get, all } = require("./db");
+
+function getSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  const secretFile = path.join(__dirname, "data", ".secret");
+  if (fs.existsSync(secretFile)) return fs.readFileSync(secretFile, "utf8").trim();
+  const secret = crypto.randomBytes(48).toString("hex");
+  fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+  fs.writeFileSync(secretFile, secret, { mode: 0o600 });
+  // eslint-disable-next-line no-console
+  console.log("[INIT] Session-Secret automatisch generiert und in data/.secret gespeichert.");
+  return secret;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +26,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "change-me-in-production",
+    secret: getSessionSecret(),
     resave: false,
     saveUninitialized: false,
     cookie: {
