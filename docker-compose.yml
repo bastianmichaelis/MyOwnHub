@@ -6,7 +6,7 @@ services:
     volumes:
       - hub-data:/app/data
     environment:
-      - SESSION_SECRET=change-me-in-production
+      - SESSION_SECRET=ersetze-mich-durch-ein-sicheres-passwort
       - PORT=3000
     restart: unless-stopped
 
