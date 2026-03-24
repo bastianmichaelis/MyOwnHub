@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - hub-data:/app/data
+    environment:
+      - SESSION_SECRET=change-me-in-production
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  hub-data:
