@@ -1,378 +1,131 @@
-/* global fetch */
 "use strict";
 
-let sessionUser = null;
-let allServers = [];
-let allUsers = [];
-let currentCalibreServer = null;
-let messageTimer = null;
+// ═══════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════
+
+let _books = [];
+let _shortcuts = [];
+let _currentView = "library";
+let _toastTimer = null;
 
 // ═══════════════════════════════════════════════════════════════
 // Boot
 // ═══════════════════════════════════════════════════════════════
 
-boot();
+document.addEventListener("DOMContentLoaded", async () => {
+  registerSW();
+  await Promise.all([refreshBooks(), refreshShortcuts()]);
+  renderCurrentView();
+  wireNav();
+  wireUpload();
+  wireSearch();
+  wireShortcutModal();
+  wireBookEditModal();
+});
 
-async function boot() {
-  const session = await api("/api/session");
-  if (session.authenticated) {
-    sessionUser = session.user;
-    showApp();
-    await loadServers();
-    if (isAdmin()) await loadUsers();
-  } else {
-    showLogin();
+function registerSW() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("SW:", e));
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Login / Logout
+// Data helpers
 // ═══════════════════════════════════════════════════════════════
 
-document.getElementById("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const username = document.getElementById("login-username").value.trim();
-  const password = document.getElementById("login-password").value;
-  const data = await api("/api/login", {
-    method: "POST",
-    body: JSON.stringify({ username, password }),
-  });
-  if (data.error) return notify(data.error, true);
-  sessionUser = data.user;
-  showApp();
-  await loadServers();
-  if (isAdmin()) await loadUsers();
-  notify("Erfolgreich eingeloggt.");
-});
-
-document.getElementById("logout-btn").addEventListener("click", async () => {
-  await api("/api/logout", { method: "POST" });
-  sessionUser = null;
-  allServers = [];
-  allUsers = [];
-  showLogin();
-});
-
-// ═══════════════════════════════════════════════════════════════
-// Panel visibility
-// ═══════════════════════════════════════════════════════════════
-
-function showLogin() {
-  document.getElementById("login-panel").classList.remove("hidden");
-  document.getElementById("app-panel").classList.add("hidden");
+async function refreshBooks() {
+  _books = await getAllBooks();
+  _books.sort((a, b) => (a.title || "").localeCompare(b.title || "", "de"));
 }
 
-function showApp() {
-  document.getElementById("login-panel").classList.add("hidden");
-  document.getElementById("app-panel").classList.remove("hidden");
-  document.getElementById("current-user").textContent = sessionUser.username;
-  document.getElementById("current-role").textContent = sessionUser.role;
-  if (isAdmin()) {
-    document.querySelectorAll(".admin-only").forEach((el) => el.classList.remove("hidden"));
-  }
-  switchView("hub");
+async function refreshShortcuts() {
+  _shortcuts = await getAllShortcuts();
+  _shortcuts.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
 // ═══════════════════════════════════════════════════════════════
 // Navigation
 // ═══════════════════════════════════════════════════════════════
 
-document.querySelectorAll(".nav-btn").forEach((btn) => {
-  btn.addEventListener("click", () => switchView(btn.dataset.view));
-});
+function wireNav() {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchView(btn.dataset.view));
+  });
+}
 
 function switchView(name) {
+  _currentView = name;
   document.querySelectorAll(".nav-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.view === name),
   );
   document.querySelectorAll(".view").forEach((v) =>
     v.classList.toggle("active", v.id === `view-${name}`),
   );
+  document.getElementById("upload-label").classList.toggle("hidden", name !== "library");
+  document.getElementById("add-shortcut-btn").classList.toggle("hidden", name !== "shortcuts");
+  renderCurrentView();
 }
 
-function switchAdminTab(tab) {
-  document.querySelectorAll(".tab-btn").forEach((b) =>
-    b.classList.toggle("active", b.dataset.tab === tab),
-  );
-  document.querySelectorAll(".tab-content").forEach((c) =>
-    c.classList.toggle("active", c.id === `tab-${tab}`),
-  );
-}
-
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => switchAdminTab(btn.dataset.tab));
-});
-
-// ═══════════════════════════════════════════════════════════════
-// Service grid
-// ═══════════════════════════════════════════════════════════════
-
-async function loadServers() {
-  const data = await api("/api/servers");
-  if (data.error) return notify(data.error, true);
-  allServers = data.servers;
-  renderServiceGrid();
-  if (isAdmin()) renderServerAdminList();
-}
-
-function renderServiceGrid() {
-  const grid = document.getElementById("service-grid");
-  grid.innerHTML = "";
-
-  if (allServers.length === 0) {
-    const p = document.createElement("p");
-    p.className = "empty-msg";
-    p.textContent = isAdmin()
-      ? "Noch keine Server. Im Admin-Bereich hinzufügen."
-      : "Keine Server verfügbar.";
-    grid.appendChild(p);
-    return;
-  }
-
-  for (const server of allServers) {
-    grid.appendChild(createServerCard(server));
-  }
-}
-
-function createServerCard(server) {
-  const card = document.createElement("div");
-  card.className = "service-card";
-  card.dataset.id = server.id;
-
-  // ── Image / avatar ──
-  const imgWrap = document.createElement("div");
-  imgWrap.className = "card-img-wrap";
-  if (server.image_path) {
-    const img = document.createElement("img");
-    img.src = server.image_path;
-    img.alt = server.title;
-    img.className = "card-img";
-    img.addEventListener("error", () => {
-      imgWrap.innerHTML = "";
-      imgWrap.appendChild(makeLetterAvatar(server.title));
-    });
-    imgWrap.appendChild(img);
-  } else {
-    imgWrap.appendChild(makeLetterAvatar(server.title));
-  }
-
-  // ── Info ──
-  const cardInfo = document.createElement("div");
-  cardInfo.className = "card-info";
-
-  const titleRow = document.createElement("div");
-  titleRow.className = "card-title-row";
-
-  const titleEl = document.createElement("span");
-  titleEl.className = "card-title";
-  titleEl.textContent = server.title;
-  titleRow.appendChild(titleEl);
-
-  if (server.type === "calibre") {
-    const badge = document.createElement("span");
-    badge.className = "type-badge calibre-badge";
-    badge.textContent = "Calibre";
-    titleRow.appendChild(badge);
-  }
-
-  if (isAdmin() && !server.visible_to_all) {
-    const vBadge = document.createElement("span");
-    vBadge.className = "type-badge restricted-badge";
-    vBadge.title = `Eingeschränkt: ${server.allowed_user_ids?.length || 0} Benutzer`;
-    vBadge.textContent = "Eingeschränkt";
-    titleRow.appendChild(vBadge);
-  }
-
-  cardInfo.appendChild(titleRow);
-
-  if (server.description) {
-    const desc = document.createElement("p");
-    desc.className = "card-desc";
-    desc.textContent = server.description;
-    cardInfo.appendChild(desc);
-  }
-
-  // ── Header row ──
-  const header = document.createElement("div");
-  header.className = "card-header";
-  header.append(imgWrap, cardInfo);
-
-  // ── Actions ──
-  const actions = document.createElement("div");
-  actions.className = "card-actions";
-
-  if (server.type === "generic") {
-    const openBtn = document.createElement("a");
-    openBtn.href = server.url;
-    openBtn.target = "_blank";
-    openBtn.rel = "noopener noreferrer";
-    openBtn.className = "btn-primary btn-sm";
-    openBtn.textContent = "Öffnen";
-    actions.appendChild(openBtn);
-  } else if (server.type === "calibre") {
-    const extBtn = document.createElement("a");
-    extBtn.href = server.url;
-    extBtn.target = "_blank";
-    extBtn.rel = "noopener noreferrer";
-    extBtn.className = "btn-secondary btn-sm";
-    extBtn.textContent = "Calibre öffnen";
-    actions.appendChild(extBtn);
-
-    const browseBtn = document.createElement("button");
-    browseBtn.type = "button";
-    browseBtn.className = "btn-primary btn-sm";
-    browseBtn.textContent = "Bibliothek";
-    browseBtn.addEventListener("click", () => openCalibreModal(server));
-    actions.appendChild(browseBtn);
-  }
-
-  if (isAdmin()) {
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "btn-edit btn-sm";
-    editBtn.textContent = "Bearbeiten";
-    editBtn.addEventListener("click", () => {
-      startEditServer(server);
-      switchView("admin");
-      switchAdminTab("servers");
-    });
-
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.className = "btn-danger btn-sm";
-    delBtn.title = "Löschen";
-    delBtn.textContent = "✕";
-    delBtn.addEventListener("click", async () => {
-      if (!confirm(`"${server.title}" wirklich löschen?`)) return;
-      const result = await api(`/api/servers/${server.id}`, { method: "DELETE" });
-      if (result.error) return notify(result.error, true);
-      await loadServers();
-      notify("Server gelöscht.");
-    });
-
-    actions.append(editBtn, delBtn);
-  }
-
-  card.append(header, actions);
-  return card;
-}
-
-function makeLetterAvatar(title) {
-  const div = document.createElement("div");
-  div.className = "letter-avatar";
-  div.textContent = (title || "?").charAt(0).toUpperCase();
-  div.style.setProperty("--avatar-hue", String(stringToHue(title)));
-  return div;
-}
-
-function stringToHue(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-  return Math.abs(h) % 360;
+function renderCurrentView() {
+  if (_currentView === "library") renderLibrary(_books);
+  if (_currentView === "shortcuts") renderShortcuts(_shortcuts);
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Calibre modal
+// Library view
 // ═══════════════════════════════════════════════════════════════
 
-function openCalibreModal(server) {
-  currentCalibreServer = server;
-  document.getElementById("calibre-modal-title").textContent = server.title;
-  document.getElementById("calibre-search").value = "";
-  document.getElementById("book-grid").innerHTML = "";
-  document.getElementById("calibre-modal").classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-  loadCalibreBooks("");
-}
-
-function closeCalibreModal() {
-  document.getElementById("calibre-modal").classList.add("hidden");
-  document.body.style.overflow = "";
-  currentCalibreServer = null;
-}
-
-document.getElementById("calibre-modal-close").addEventListener("click", closeCalibreModal);
-document.querySelector(".modal-backdrop").addEventListener("click", closeCalibreModal);
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeCalibreModal();
-});
-
-document.getElementById("calibre-search-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!currentCalibreServer) return;
-  loadCalibreBooks(document.getElementById("calibre-search").value.trim());
-});
-
-async function loadCalibreBooks(query) {
-  if (!currentCalibreServer) return;
-  const status = document.getElementById("calibre-status");
+function renderLibrary(books) {
   const grid = document.getElementById("book-grid");
-  status.textContent = "Lade Bücher…";
+  const empty = document.getElementById("library-empty");
   grid.innerHTML = "";
 
-  const searchData = await api(
-    `/api/servers/${currentCalibreServer.id}/calibre/search?query=${encodeURIComponent(query)}&num=50&sort=title`,
-  );
-
-  if (searchData.error) {
-    status.textContent = "Fehler: " + searchData.error;
+  if (books.length === 0) {
+    empty.classList.remove("hidden");
     return;
   }
+  empty.classList.add("hidden");
 
-  const ids = searchData.book_ids || [];
-  if (ids.length === 0) {
-    status.textContent = query ? "Keine Bücher gefunden." : "Bibliothek ist leer.";
-    return;
-  }
-
-  const total = searchData.total_num || ids.length;
-  status.textContent = `${total} ${total === 1 ? "Buch" : "Bücher"}`;
-
-  const booksData = await api(
-    `/api/servers/${currentCalibreServer.id}/calibre/books?ids=${ids.join(",")}`,
-  );
-
-  if (booksData.error) {
-    status.textContent = "Fehler beim Laden: " + booksData.error;
-    return;
-  }
-
-  const serverId = currentCalibreServer.id;
-  const serverUrl = currentCalibreServer.url.replace(/\/$/, "");
-
-  for (const id of ids) {
-    const book = booksData[String(id)];
-    if (!book) continue;
-    grid.appendChild(createBookCard(id, book, serverId, serverUrl));
+  for (const book of books) {
+    grid.appendChild(createBookCard(book));
   }
 }
 
-function createBookCard(bookId, book, serverId, serverUrl) {
+function createBookCard(book) {
   const card = document.createElement("div");
   card.className = "book-card";
-  card.title = book.title || "Unbekannt";
-  card.addEventListener("click", () => {
-    window.open(`${serverUrl}/browse/book/${bookId}`, "_blank", "noopener,noreferrer");
-  });
 
+  // Cover
   const coverWrap = document.createElement("div");
   coverWrap.className = "book-cover-wrap";
-
-  const img = document.createElement("img");
-  img.className = "book-cover";
-  img.loading = "lazy";
-  img.alt = book.title || "";
-  img.src = `/api/servers/${serverId}/calibre/cover/${bookId}`;
-  img.addEventListener("error", () => {
-    img.style.display = "none";
+  if (book.cover_b64) {
+    const img = document.createElement("img");
+    img.className = "book-cover";
+    img.src = book.cover_b64;
+    img.alt = book.title;
+    img.loading = "lazy";
+    coverWrap.appendChild(img);
+  } else {
     const ph = document.createElement("div");
     ph.className = "book-cover-placeholder";
-    ph.textContent = "📚";
+    ph.setAttribute("aria-hidden", "true");
+    ph.textContent = book.format === "pdf" ? "📄" : "📚";
     coverWrap.appendChild(ph);
-  });
-  coverWrap.appendChild(img);
+  }
 
+  // Badge
+  if (book.format === "pdf") {
+    const badge = document.createElement("span");
+    badge.className = "format-badge";
+    badge.textContent = "PDF";
+    coverWrap.appendChild(badge);
+  }
+
+  // Open on cover click
+  coverWrap.addEventListener("click", () => openBook(book.id));
+
+  // Info
   const info = document.createElement("div");
   info.className = "book-info";
 
@@ -384,321 +137,356 @@ function createBookCard(bookId, book, serverId, serverUrl) {
   authors.className = "book-authors";
   authors.textContent = Array.isArray(book.authors) ? book.authors.join(", ") : "";
 
+  // Actions (long-press menu or buttons)
+  const actions = document.createElement("div");
+  actions.className = "book-actions";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "book-action-btn";
+  editBtn.title = "Bearbeiten";
+  editBtn.innerHTML = "&#9998;";
+  editBtn.addEventListener("click", (e) => { e.stopPropagation(); openBookEditModal(book); });
+
+  const delBtn = document.createElement("button");
+  delBtn.type = "button";
+  delBtn.className = "book-action-btn danger";
+  delBtn.title = "Löschen";
+  delBtn.innerHTML = "&#x2715;";
+  delBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (!confirm(`"${book.title}" wirklich löschen?`)) return;
+    await deleteBook(book.id);
+    await deleteBookFile(book.id);
+    await refreshBooks();
+    renderLibrary(filterBooks(document.getElementById("book-search").value));
+    toast("Buch gelöscht.");
+  });
+
+  actions.append(editBtn, delBtn);
   info.append(title, authors);
-  card.append(coverWrap, info);
+  card.append(coverWrap, info, actions);
+  return card;
+}
+
+function filterBooks(query) {
+  if (!query.trim()) return _books;
+  const q = query.toLowerCase();
+  return _books.filter(
+    (b) =>
+      (b.title || "").toLowerCase().includes(q) ||
+      (b.authors || []).join(" ").toLowerCase().includes(q),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Search
+// ═══════════════════════════════════════════════════════════════
+
+function wireSearch() {
+  const input = document.getElementById("book-search");
+  input.addEventListener("input", () => renderLibrary(filterBooks(input.value)));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Upload
+// ═══════════════════════════════════════════════════════════════
+
+function wireUpload() {
+  const input = document.getElementById("book-upload");
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files);
+    if (!files.length) return;
+    input.value = "";
+    await importFiles(files);
+  });
+}
+
+async function importFiles(files) {
+  const overlay = document.getElementById("upload-overlay");
+  const status = document.getElementById("upload-status");
+  overlay.classList.remove("hidden");
+
+  let ok = 0;
+  let fail = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    status.textContent = `Importiere ${i + 1} / ${files.length}: ${file.name}`;
+    try {
+      const meta = await parseBookFile(file);
+      if (meta.cover_b64) {
+        meta.cover_b64 = await resizeCover(meta.cover_b64, 400);
+      }
+      const ab = await file.arrayBuffer();
+      const id = await addBook(meta);
+      await saveBookFile(id, ab);
+      ok++;
+    } catch (e) {
+      console.error("Import error:", e);
+      fail++;
+    }
+  }
+
+  overlay.classList.add("hidden");
+  await refreshBooks();
+  renderLibrary(_books);
+  if (fail === 0) toast(`${ok} Buch${ok !== 1 ? "er" : ""} importiert.`);
+  else toast(`${ok} importiert, ${fail} fehlgeschlagen.`, true);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Book edit modal
+// ═══════════════════════════════════════════════════════════════
+
+function wireBookEditModal() {
+  document.getElementById("book-edit-close").addEventListener("click", closeBookEditModal);
+  document.getElementById("book-edit-cancel").addEventListener("click", closeBookEditModal);
+  document.querySelector("#book-edit-modal .modal-backdrop").addEventListener("click", closeBookEditModal);
+
+  document.getElementById("book-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = Number(document.getElementById("be-id").value);
+    const title = document.getElementById("be-title").value.trim();
+    const authors = document.getElementById("be-authors").value
+      .split(",").map((a) => a.trim()).filter(Boolean);
+
+    const patch = { title, authors };
+
+    const coverFile = document.getElementById("be-cover").files[0];
+    if (coverFile) {
+      patch.cover_b64 = await imageFileToBase64(coverFile, 400);
+    }
+
+    await updateBook(id, patch);
+    closeBookEditModal();
+    await refreshBooks();
+    renderLibrary(filterBooks(document.getElementById("book-search").value));
+    toast("Buch aktualisiert.");
+  });
+}
+
+function openBookEditModal(book) {
+  document.getElementById("be-id").value = book.id;
+  document.getElementById("be-title").value = book.title || "";
+  document.getElementById("be-authors").value = (book.authors || []).join(", ");
+  document.getElementById("be-cover").value = "";
+
+  const preview = document.getElementById("be-cover-preview");
+  const img = document.getElementById("be-cover-current");
+  if (book.cover_b64) {
+    img.src = book.cover_b64;
+    preview.classList.remove("hidden");
+  } else {
+    preview.classList.add("hidden");
+  }
+
+  document.getElementById("book-edit-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeBookEditModal() {
+  document.getElementById("book-edit-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Shortcuts view
+// ═══════════════════════════════════════════════════════════════
+
+function renderShortcuts(shortcuts) {
+  const grid = document.getElementById("shortcuts-grid");
+  const empty = document.getElementById("shortcuts-empty");
+  grid.innerHTML = "";
+
+  if (shortcuts.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  for (const sc of shortcuts) {
+    grid.appendChild(createShortcutCard(sc));
+  }
+}
+
+function createShortcutCard(sc) {
+  const card = document.createElement("div");
+  card.className = "service-card";
+
+  const header = document.createElement("div");
+  header.className = "card-header";
+
+  // Image / avatar
+  const imgWrap = document.createElement("div");
+  imgWrap.className = "card-img-wrap";
+  if (sc.image_b64) {
+    const img = document.createElement("img");
+    img.src = sc.image_b64;
+    img.alt = sc.title;
+    img.className = "card-img";
+    img.addEventListener("error", () => {
+      imgWrap.innerHTML = "";
+      imgWrap.appendChild(makeLetterAvatar(sc.title));
+    });
+    imgWrap.appendChild(img);
+  } else {
+    imgWrap.appendChild(makeLetterAvatar(sc.title));
+  }
+
+  const info = document.createElement("div");
+  info.className = "card-info";
+  const title = document.createElement("div");
+  title.className = "card-title";
+  title.textContent = sc.title;
+  info.appendChild(title);
+  if (sc.description) {
+    const desc = document.createElement("p");
+    desc.className = "card-desc";
+    desc.textContent = sc.description;
+    info.appendChild(desc);
+  }
+
+  header.append(imgWrap, info);
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+
+  const openBtn = document.createElement("a");
+  openBtn.href = sc.url;
+  openBtn.target = "_blank";
+  openBtn.rel = "noopener noreferrer";
+  openBtn.className = "btn-primary btn-sm";
+  openBtn.textContent = "Öffnen";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "btn-edit btn-sm";
+  editBtn.textContent = "Bearbeiten";
+  editBtn.addEventListener("click", () => openShortcutModal(sc));
+
+  const delBtn = document.createElement("button");
+  delBtn.type = "button";
+  delBtn.className = "btn-danger btn-sm";
+  delBtn.textContent = "✕";
+  delBtn.addEventListener("click", async () => {
+    if (!confirm(`"${sc.title}" löschen?`)) return;
+    await deleteShortcut(sc.id);
+    await refreshShortcuts();
+    renderShortcuts(_shortcuts);
+    toast("Shortcut gelöscht.");
+  });
+
+  actions.append(openBtn, editBtn, delBtn);
+  card.append(header, actions);
   return card;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Admin: Users
+// Shortcut modal
 // ═══════════════════════════════════════════════════════════════
 
-async function loadUsers() {
-  const data = await api("/api/users");
-  if (data.error) return notify(data.error, true);
-  allUsers = data.users;
-  renderUserList();
-}
+function wireShortcutModal() {
+  document.getElementById("add-shortcut-btn").addEventListener("click", () => openShortcutModal(null));
+  document.getElementById("shortcut-modal-close").addEventListener("click", closeShortcutModal);
+  document.getElementById("shortcut-modal-cancel").addEventListener("click", closeShortcutModal);
+  document.querySelector("#shortcut-modal .modal-backdrop").addEventListener("click", closeShortcutModal);
 
-function renderUserList() {
-  const list = document.getElementById("user-list");
-  list.innerHTML = "";
-  allUsers.forEach((u) => {
-    const li = document.createElement("li");
-    li.className = "admin-list-item";
-
-    const info = document.createElement("span");
-    info.innerHTML = `<strong>${escapeHtml(u.username)}</strong>&nbsp;<span class="role-badge">${u.role}</span>`;
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "btn-danger btn-sm";
-    del.textContent = "✕";
-    del.title = "Benutzer löschen";
-    del.disabled = u.id === sessionUser.id;
-    del.addEventListener("click", async () => {
-      if (!confirm(`Benutzer "${u.username}" löschen?`)) return;
-      const result = await api(`/api/users/${u.id}`, { method: "DELETE" });
-      if (result.error) return notify(result.error, true);
-      await loadUsers();
-      notify("Benutzer gelöscht.");
-    });
-
-    li.append(info, del);
-    list.appendChild(li);
-  });
-}
-
-document.getElementById("user-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const username = document.getElementById("new-username").value.trim();
-  const password = document.getElementById("new-password").value;
-  const role = document.getElementById("new-role").value;
-  const result = await api("/api/users", {
-    method: "POST",
-    body: JSON.stringify({ username, password, role }),
-  });
-  if (result.error) return notify(result.error, true);
-  document.getElementById("user-form").reset();
-  await loadUsers();
-  notify("Benutzer angelegt.");
-});
-
-// ═══════════════════════════════════════════════════════════════
-// Admin: Server form
-// ═══════════════════════════════════════════════════════════════
-
-document.getElementById("server-type").addEventListener("change", (e) => {
-  document.getElementById("calibre-library-field").classList.toggle(
-    "hidden",
-    e.target.value !== "calibre",
-  );
-});
-
-document.getElementById("server-visible-all").addEventListener("change", (e) => {
-  document.getElementById("user-access-list").classList.toggle("hidden", e.target.checked);
-});
-
-document.getElementById("server-image-delete").addEventListener("click", async () => {
-  const serverId = document.getElementById("edit-server-id").value;
-  if (!serverId) return;
-  const result = await api(`/api/servers/${serverId}/image`, { method: "DELETE" });
-  if (result.error) return notify(result.error, true);
-  document.getElementById("server-image-preview").classList.add("hidden");
-  document.getElementById("server-image-current").src = "";
-  const s = allServers.find((x) => x.id === Number(serverId));
-  if (s) s.image_path = null;
-  notify("Bild entfernt.");
-});
-
-document.getElementById("server-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const id = document.getElementById("edit-server-id").value;
-  const payload = {
-    title: document.getElementById("server-title").value.trim(),
-    url: document.getElementById("server-url").value.trim(),
-    description: document.getElementById("server-description").value.trim(),
-    type: document.getElementById("server-type").value,
-    calibre_library: document.getElementById("server-calibre-library").value.trim(),
-  };
-
-  const endpoint = id ? `/api/servers/${id}` : "/api/servers";
-  const method = id ? "PUT" : "POST";
-  const result = await api(endpoint, { method, body: JSON.stringify(payload) });
-  if (result.error) return notify(result.error, true);
-
-  const serverId = id ? Number(id) : result.server.id;
-
-  // Upload image if selected
-  const imageFile = document.getElementById("server-image").files[0];
-  if (imageFile) {
-    const formData = new FormData();
-    formData.append("image", imageFile);
-    const imgRes = await fetch(`/api/servers/${serverId}/image`, {
-      method: "POST",
-      body: formData,
-    });
-    const imgData = await imgRes.json().catch(() => ({ error: "Upload-Fehler." }));
-    if (imgData.error) notify("Bild-Upload fehlgeschlagen: " + imgData.error, true);
-  }
-
-  // Set visibility
-  const visibleAll = document.getElementById("server-visible-all").checked;
-  const userIds = [];
-  if (!visibleAll) {
-    document.querySelectorAll("#user-checkboxes input:checked").forEach((cb) => {
-      userIds.push(Number(cb.value));
-    });
-  }
-  await api(`/api/servers/${serverId}/visibility`, {
-    method: "PUT",
-    body: JSON.stringify({ visible_to_all: visibleAll, user_ids: userIds }),
+  document.getElementById("sc-image-remove").addEventListener("click", () => {
+    document.getElementById("sc-image-preview").classList.add("hidden");
+    document.getElementById("sc-image-current").src = "";
+    document.getElementById("sc-image").value = "";
   });
 
-  resetServerForm();
-  await loadServers();
-  notify(id ? "Server aktualisiert." : "Server hinzugefügt.");
-});
+  document.getElementById("shortcut-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("sc-id").value;
+    const title = document.getElementById("sc-title").value.trim();
+    const url = document.getElementById("sc-url").value.trim();
+    const description = document.getElementById("sc-description").value.trim();
 
-document.getElementById("server-reset").addEventListener("click", resetServerForm);
+    let image_b64 = id
+      ? (_shortcuts.find((s) => s.id === Number(id))?.image_b64 ?? null)
+      : null;
 
-function renderUserCheckboxes(server) {
-  const container = document.getElementById("user-checkboxes");
-  container.innerHTML = "";
+    // Check if image was removed
+    if (document.getElementById("sc-image-preview").classList.contains("hidden")) {
+      image_b64 = null;
+    }
 
-  const nonAdminUsers = allUsers.filter((u) => u.id !== sessionUser.id);
+    const imgFile = document.getElementById("sc-image").files[0];
+    if (imgFile) {
+      image_b64 = await imageFileToBase64(imgFile, 256);
+    }
 
-  if (nonAdminUsers.length === 0) {
-    container.innerHTML = '<p class="field-hint muted">Keine weiteren Benutzer vorhanden.</p>';
-    return;
-  }
+    const data = { title, url, description, image_b64 };
 
-  nonAdminUsers.forEach((u) => {
-    const label = document.createElement("label");
-    label.className = "checkbox-label";
+    if (id) {
+      await updateShortcut(Number(id), data);
+      toast("Shortcut aktualisiert.");
+    } else {
+      data.sort_order = _shortcuts.length;
+      await addShortcut(data);
+      toast("Shortcut hinzugefügt.");
+    }
 
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.value = u.id;
-
-    if (server?.allowed_user_ids?.includes(u.id)) cb.checked = true;
-
-    label.append(cb, document.createTextNode(` ${u.username} (${u.role})`));
-    container.appendChild(label);
+    closeShortcutModal();
+    await refreshShortcuts();
+    renderShortcuts(_shortcuts);
   });
 }
 
-function startEditServer(server) {
-  document.getElementById("edit-server-id").value = String(server.id);
-  document.getElementById("server-title").value = server.title;
-  document.getElementById("server-url").value = server.url;
-  document.getElementById("server-description").value = server.description || "";
-  document.getElementById("server-type").value = server.type;
-  document.getElementById("server-calibre-library").value = server.calibre_library || "";
-  document.getElementById("calibre-library-field").classList.toggle(
-    "hidden",
-    server.type !== "calibre",
-  );
+function openShortcutModal(sc) {
+  document.getElementById("sc-id").value = sc ? sc.id : "";
+  document.getElementById("sc-title").value = sc?.title ?? "";
+  document.getElementById("sc-url").value = sc?.url ?? "";
+  document.getElementById("sc-description").value = sc?.description ?? "";
+  document.getElementById("sc-image").value = "";
 
-  const visibleAll = Boolean(server.visible_to_all);
-  document.getElementById("server-visible-all").checked = visibleAll;
-  document.getElementById("user-access-list").classList.toggle("hidden", visibleAll);
-  renderUserCheckboxes(server);
-
-  // Image preview
-  const preview = document.getElementById("server-image-preview");
-  const imgEl = document.getElementById("server-image-current");
-  if (server.image_path) {
-    imgEl.src = server.image_path;
+  const preview = document.getElementById("sc-image-preview");
+  const img = document.getElementById("sc-image-current");
+  if (sc?.image_b64) {
+    img.src = sc.image_b64;
     preview.classList.remove("hidden");
   } else {
     preview.classList.add("hidden");
-    imgEl.src = "";
+    img.src = "";
   }
 
-  document.getElementById("server-form-title").textContent = "Server bearbeiten";
-  document.getElementById("server-submit").textContent = "Aktualisieren";
-  document.getElementById("server-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("shortcut-modal-title").textContent = sc
+    ? "Shortcut bearbeiten"
+    : "Shortcut hinzufügen";
+  document.getElementById("shortcut-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
 }
 
-function resetServerForm() {
-  document.getElementById("edit-server-id").value = "";
-  document.getElementById("server-form").reset();
-  document.getElementById("calibre-library-field").classList.add("hidden");
-  document.getElementById("user-access-list").classList.add("hidden");
-  document.getElementById("server-visible-all").checked = true;
-  document.getElementById("server-image-preview").classList.add("hidden");
-  document.getElementById("server-image-current").src = "";
-  document.getElementById("server-form-title").textContent = "Server hinzufügen";
-  document.getElementById("server-submit").textContent = "Speichern";
-}
-
-// ─── Server admin list ────────────────────────────────────────
-
-function renderServerAdminList() {
-  const list = document.getElementById("server-admin-list");
-  list.innerHTML = "";
-
-  if (allServers.length === 0) {
-    list.innerHTML = '<p class="empty-msg">Keine Server vorhanden.</p>';
-    return;
-  }
-
-  for (const server of allServers) {
-    const item = document.createElement("div");
-    item.className = "server-admin-item";
-
-    const left = document.createElement("div");
-    left.className = "server-admin-info";
-
-    const thumb = document.createElement("div");
-    thumb.className = "server-admin-thumb";
-    if (server.image_path) {
-      const img = document.createElement("img");
-      img.src = server.image_path;
-      img.alt = "";
-      thumb.appendChild(img);
-    } else {
-      thumb.appendChild(makeLetterAvatar(server.title));
-    }
-
-    const text = document.createElement("div");
-    text.className = "server-admin-text";
-
-    const nameRow = document.createElement("div");
-    nameRow.innerHTML = `<strong>${escapeHtml(server.title)}</strong> <span class="type-badge">${server.type}</span>`;
-
-    const urlEl = document.createElement("div");
-    urlEl.className = "text-muted text-sm";
-    urlEl.textContent = server.url;
-
-    const visEl = document.createElement("div");
-    visEl.className = "text-muted text-sm";
-    visEl.textContent = server.visible_to_all
-      ? "Für alle sichtbar"
-      : `Eingeschränkt (${server.allowed_user_ids?.length || 0} Benutzer)`;
-
-    text.append(nameRow, urlEl, visEl);
-    left.append(thumb, text);
-
-    const actions = document.createElement("div");
-    actions.className = "server-admin-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "btn-edit btn-sm";
-    editBtn.textContent = "Bearbeiten";
-    editBtn.addEventListener("click", () => startEditServer(server));
-
-    const delBtn = document.createElement("button");
-    delBtn.type = "button";
-    delBtn.className = "btn-danger btn-sm";
-    delBtn.textContent = "Löschen";
-    delBtn.addEventListener("click", async () => {
-      if (!confirm(`"${server.title}" wirklich löschen?`)) return;
-      const result = await api(`/api/servers/${server.id}`, { method: "DELETE" });
-      if (result.error) return notify(result.error, true);
-      await loadServers();
-      notify("Server gelöscht.");
-    });
-
-    actions.append(editBtn, delBtn);
-    item.append(left, actions);
-    list.appendChild(item);
-  }
+function closeShortcutModal() {
+  document.getElementById("shortcut-modal").classList.add("hidden");
+  document.body.style.overflow = "";
 }
 
 // ═══════════════════════════════════════════════════════════════
 // Utilities
 // ═══════════════════════════════════════════════════════════════
 
-function isAdmin() {
-  return sessionUser?.role === "admin";
+function makeLetterAvatar(title) {
+  const div = document.createElement("div");
+  div.className = "letter-avatar";
+  div.textContent = (title || "?").charAt(0).toUpperCase();
+  div.style.setProperty("--avatar-hue", String(stringToHue(title || "")));
+  return div;
 }
 
-function notify(text, isError = false) {
-  const el = document.getElementById("message");
+function stringToHue(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+  return Math.abs(h) % 360;
+}
+
+function toast(text, isError = false) {
+  const el = document.getElementById("toast");
   el.textContent = text;
-  el.className = `global-message${isError ? " error" : ""} show`;
-  clearTimeout(messageTimer);
-  messageTimer = setTimeout(() => el.classList.remove("show"), 4000);
-}
-
-async function api(url, options = {}) {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  const data = await res.json().catch(() => ({ error: "Ungültige Serverantwort." }));
-  if (!res.ok && !data.error) return { error: "Serverfehler." };
-  return data;
-}
-
-function escapeHtml(v) {
-  return String(v)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  el.className = `toast show${isError ? " error" : ""}`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
 }

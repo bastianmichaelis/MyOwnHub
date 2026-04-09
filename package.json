@@ -1,17 +1,13 @@
 {
   "name": "my-own-hub",
-  "version": "1.0.0",
-  "description": "Self-hosted service hub with login, multiple servers, Calibre integration",
+  "version": "2.0.0",
+  "description": "Offline-PWA: Bibliothek & Server-Shortcuts – kein Backend nötig",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "express": "^4.21.2",
-    "express-session": "^1.18.1",
-    "multer": "^1.4.5-lts.1",
-    "sqlite3": "^5.1.7"
+    "express": "^4.21.2"
   }
 }

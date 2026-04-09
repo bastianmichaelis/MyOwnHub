@@ -2,178 +2,160 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>MyOwnHub</title>
+
+    <!-- PWA / iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MyOwnHub" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
 
-    <!-- ── Login ── -->
-    <div id="login-panel" class="login-screen">
-      <div class="login-card">
-        <div class="login-logo">&#127968;</div>
-        <h1 class="login-title">MyOwnHub</h1>
-        <form id="login-form">
+    <!-- ── Top bar ── -->
+    <header class="topbar">
+      <div class="topbar-brand">MyOwnHub</div>
+      <nav class="topbar-nav" aria-label="Navigation">
+        <button class="nav-btn active" data-view="library">Bibliothek</button>
+        <button class="nav-btn" data-view="shortcuts">Shortcuts</button>
+      </nav>
+      <div class="topbar-right">
+        <!-- Library: file upload trigger -->
+        <label id="upload-label" class="btn-primary btn-sm" role="button" tabindex="0" title="Bücher importieren">
+          + Buch
+          <input id="book-upload" type="file" accept=".epub,.pdf" multiple hidden />
+        </label>
+        <!-- Shortcuts: add button (hidden when not on shortcuts view) -->
+        <button id="add-shortcut-btn" class="btn-primary btn-sm hidden">+ Shortcut</button>
+      </div>
+    </header>
+
+    <!-- ── Library view ── -->
+    <section id="view-library" class="view active">
+      <div class="view-toolbar">
+        <input id="book-search" type="search" placeholder="Titel oder Autor suchen&hellip;" />
+      </div>
+      <div id="book-grid" class="book-grid"></div>
+      <p id="library-empty" class="empty-msg hidden">
+        Noch keine B&uuml;cher. Tippe auf &ldquo;+ Buch&rdquo; zum Importieren.
+      </p>
+    </section>
+
+    <!-- ── Shortcuts view ── -->
+    <section id="view-shortcuts" class="view">
+      <div id="shortcuts-grid" class="service-grid"></div>
+      <p id="shortcuts-empty" class="empty-msg hidden">
+        Noch keine Shortcuts. Tippe auf &ldquo;+ Shortcut&rdquo; um einen hinzuzuf&uuml;gen.
+      </p>
+    </section>
+
+    <!-- ── EPUB Reader modal ── -->
+    <div id="reader-modal" class="reader-modal hidden" role="dialog" aria-modal="true" aria-label="Buchleser">
+      <div class="reader-toolbar">
+        <button id="reader-close" class="reader-btn" aria-label="Schlie&szlig;en">&#x2715;</button>
+        <span id="reader-title" class="reader-title-text"></span>
+        <div class="reader-controls">
+          <button id="reader-font-minus" class="reader-btn" aria-label="Schrift kleiner">A&minus;</button>
+          <button id="reader-font-plus"  class="reader-btn" aria-label="Schrift gr&ouml;&szlig;er">A+</button>
+        </div>
+      </div>
+      <div class="reader-body">
+        <button id="reader-prev" class="reader-page-btn reader-page-prev" aria-label="Vorherige Seite">&#8249;</button>
+        <div id="reader-viewer" class="reader-viewer"></div>
+        <button id="reader-next" class="reader-page-btn reader-page-next" aria-label="N&auml;chste Seite">&#8250;</button>
+      </div>
+    </div>
+
+    <!-- ── Shortcut modal (add/edit) ── -->
+    <div id="shortcut-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="shortcut-modal-title">Shortcut hinzuf&uuml;gen</h2>
+          <button id="shortcut-modal-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
+        </div>
+        <form id="shortcut-form" class="modal-form">
+          <input id="sc-id" type="hidden" />
           <div class="field">
-            <label for="login-username">Benutzername</label>
-            <input id="login-username" autocomplete="username" required />
+            <label for="sc-title">Name *</label>
+            <input id="sc-title" placeholder="z.B. Jellyfin" required />
           </div>
           <div class="field">
-            <label for="login-password">Passwort</label>
-            <input id="login-password" type="password" autocomplete="current-password" required />
+            <label for="sc-url">URL *</label>
+            <input id="sc-url" type="url" placeholder="http://192.168.1.100:8096" required />
           </div>
-          <button type="submit" class="btn-primary btn-full">Anmelden</button>
+          <div class="field">
+            <label for="sc-description">Beschreibung</label>
+            <input id="sc-description" placeholder="Kurze Beschreibung (optional)" />
+          </div>
+          <div class="field">
+            <label for="sc-image">Bild (optional)</label>
+            <input id="sc-image" type="file" accept="image/*" />
+            <div id="sc-image-preview" class="image-preview hidden">
+              <img id="sc-image-current" src="" alt="" />
+              <button type="button" id="sc-image-remove" class="btn-danger btn-sm">Entfernen</button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Speichern</button>
+            <button type="button" id="shortcut-modal-cancel" class="btn-secondary">Abbrechen</button>
+          </div>
         </form>
       </div>
     </div>
 
-    <!-- ── App shell ── -->
-    <div id="app-panel" class="hidden">
-
-      <header class="topbar">
-        <div class="topbar-brand">MyOwnHub</div>
-        <nav class="topbar-nav" aria-label="Hauptnavigation">
-          <button class="nav-btn active" data-view="hub">Hub</button>
-          <button class="nav-btn admin-only hidden" data-view="admin">Admin</button>
-        </nav>
-        <div class="topbar-right">
-          <span class="topbar-user">
-            <strong id="current-user"></strong>
-            <span class="role-badge" id="current-role"></span>
-          </span>
-          <button id="logout-btn" type="button" class="btn-logout">Logout</button>
-        </div>
-      </header>
-
-      <!-- Hub view -->
-      <section id="view-hub" class="view active">
-        <div class="container">
-          <div id="service-grid" class="service-grid"></div>
-        </div>
-      </section>
-
-      <!-- Admin view -->
-      <section id="view-admin" class="view">
-        <div class="container">
-          <div class="admin-tabs">
-            <button class="tab-btn active" data-tab="users">Benutzer</button>
-            <button class="tab-btn" data-tab="servers">Server</button>
-          </div>
-
-          <!-- Users tab -->
-          <div id="tab-users" class="tab-content active">
-            <div class="admin-panel">
-              <h2>Neuen Benutzer anlegen</h2>
-              <form id="user-form" class="admin-form">
-                <input id="new-username" placeholder="Benutzername" required />
-                <input id="new-password" type="password" placeholder="Passwort" required />
-                <select id="new-role">
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-                <button type="submit" class="btn-primary">Anlegen</button>
-              </form>
-              <h3>Benutzerliste</h3>
-              <ul id="user-list" class="admin-list"></ul>
-            </div>
-          </div>
-
-          <!-- Servers tab -->
-          <div id="tab-servers" class="tab-content">
-            <div class="admin-panel">
-              <h2 id="server-form-title">Server hinzuf&uuml;gen</h2>
-              <form id="server-form" class="server-admin-form">
-                <input id="edit-server-id" type="hidden" />
-
-                <div class="form-row">
-                  <div class="field">
-                    <label for="server-title">Name *</label>
-                    <input id="server-title" placeholder="z.B. Jellyfin" required />
-                  </div>
-                  <div class="field">
-                    <label for="server-type">Typ</label>
-                    <select id="server-type">
-                      <option value="generic">Generisch</option>
-                      <option value="calibre">Calibre</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="field">
-                  <label for="server-url">URL *</label>
-                  <input id="server-url" type="url" placeholder="http://192.168.1.100:8096" required />
-                </div>
-
-                <div class="field">
-                  <label for="server-description">Beschreibung</label>
-                  <input id="server-description" placeholder="Kurze Beschreibung (optional)" />
-                </div>
-
-                <div id="calibre-library-field" class="field hidden">
-                  <label for="server-calibre-library">Bibliothek-Name</label>
-                  <input id="server-calibre-library" placeholder="Calibre_Library" />
-                  <p class="field-hint">Standard: &ldquo;Calibre_Library&rdquo;</p>
-                </div>
-
-                <div class="field">
-                  <label for="server-image">Bild</label>
-                  <input id="server-image" type="file" accept="image/*" />
-                  <p class="field-hint">Max. 5 MB &middot; JPEG, PNG, GIF oder WebP</p>
-                  <div id="server-image-preview" class="image-preview hidden">
-                    <img id="server-image-current" src="" alt="Server-Bild" />
-                    <button type="button" id="server-image-delete" class="btn-danger btn-sm">Bild entfernen</button>
-                  </div>
-                </div>
-
-                <fieldset class="visibility-fieldset">
-                  <legend>Sichtbarkeit</legend>
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="server-visible-all" checked />
-                    F&uuml;r alle Benutzer sichtbar
-                  </label>
-                  <div id="user-access-list" class="user-access-list hidden">
-                    <p class="field-hint">Benutzer ausw&auml;hlen, die diesen Server sehen d&uuml;rfen:</p>
-                    <div id="user-checkboxes"></div>
-                  </div>
-                </fieldset>
-
-                <div class="form-actions">
-                  <button type="submit" id="server-submit" class="btn-primary">Speichern</button>
-                  <button type="button" id="server-reset" class="btn-secondary">Abbrechen</button>
-                </div>
-              </form>
-
-              <h3>Serverliste</h3>
-              <div id="server-admin-list" class="server-admin-list"></div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-    </div><!-- /app-panel -->
-
-    <!-- ── Calibre modal ── -->
-    <div id="calibre-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <!-- ── Book edit modal ── -->
+    <div id="book-edit-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <div class="modal-header">
-          <h2 id="calibre-modal-title">Bibliothek</h2>
-          <button type="button" id="calibre-modal-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
+          <h2>Buch bearbeiten</h2>
+          <button id="book-edit-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
         </div>
-        <div class="modal-body">
-          <form id="calibre-search-form" class="search-bar">
-            <input id="calibre-search" placeholder="Titel, Autor suchen&hellip;" />
-            <button type="submit" class="btn-primary">Suchen</button>
-          </form>
-          <p id="calibre-status" class="calibre-status"></p>
-          <div id="book-grid" class="book-grid"></div>
-        </div>
+        <form id="book-edit-form" class="modal-form">
+          <input id="be-id" type="hidden" />
+          <div class="field">
+            <label for="be-title">Titel</label>
+            <input id="be-title" required />
+          </div>
+          <div class="field">
+            <label for="be-authors">Autor(en)</label>
+            <input id="be-authors" placeholder="Autor 1, Autor 2" />
+          </div>
+          <div class="field">
+            <label for="be-cover">Cover ersetzen</label>
+            <input id="be-cover" type="file" accept="image/*" />
+            <div id="be-cover-preview" class="image-preview hidden">
+              <img id="be-cover-current" src="" alt="" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Speichern</button>
+            <button type="button" id="book-edit-cancel" class="btn-secondary">Abbrechen</button>
+          </div>
+        </form>
       </div>
     </div>
 
-    <div id="message" class="global-message" aria-live="polite"></div>
+    <!-- ── Upload progress overlay ── -->
+    <div id="upload-overlay" class="upload-overlay hidden">
+      <div class="upload-spinner"></div>
+      <p id="upload-status">Importiere&hellip;</p>
+    </div>
 
-    <script src="app.js"></script>
+    <!-- ── Toast ── -->
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <!-- Scripts (order matters: epub.min.js must come first) -->
+    <script src="/lib/epub.min.js"></script>
+    <script src="/db-browser.js"></script>
+    <script src="/epub-parser.js"></script>
+    <script src="/reader.js"></script>
+    <script src="/app.js"></script>
   </body>
 </html>
