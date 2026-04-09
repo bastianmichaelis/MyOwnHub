@@ -1,0 +1,13 @@
+{
+  "name": "my-own-hub",
+  "version": "2.0.0",
+  "description": "Offline-PWA: Bibliothek & Server-Shortcuts – kein Backend nötig",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
