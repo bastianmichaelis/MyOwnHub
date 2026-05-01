@@ -22,7 +22,7 @@
       <div class="topbar-brand">MyOwnHub</div>
       <nav class="topbar-nav" aria-label="Navigation">
         <button class="nav-btn active" data-view="library">Bibliothek</button>
-        <button class="nav-btn" data-view="shortcuts">Shortcuts</button>
+        <button class="nav-btn" data-view="websites">Websites</button>
       </nav>
       <div class="topbar-right">
         <!-- Library: file upload trigger -->
@@ -30,8 +30,10 @@
           + Buch
           <input id="book-upload" type="file" accept=".epub,.pdf" multiple hidden />
         </label>
-        <!-- Shortcuts: add button (hidden when not on shortcuts view) -->
-        <button id="add-shortcut-btn" class="btn-primary btn-sm hidden">+ Shortcut</button>
+        <!-- Websites: add button (hidden when not on websites view) -->
+        <button id="add-shortcut-btn" class="btn-primary btn-sm hidden">+ Website</button>
+        <!-- PWA install button (shown only when installable) -->
+        <button id="install-btn" class="btn-secondary btn-sm hidden" title="App installieren">&#8681; App</button>
       </div>
     </header>
 
@@ -46,11 +48,11 @@
       </p>
     </section>
 
-    <!-- ── Shortcuts view ── -->
-    <section id="view-shortcuts" class="view">
+    <!-- ── Websites view ── -->
+    <section id="view-websites" class="view">
       <div id="shortcuts-grid" class="service-grid"></div>
       <p id="shortcuts-empty" class="empty-msg hidden">
-        Noch keine Shortcuts. Tippe auf &ldquo;+ Shortcut&rdquo; um einen hinzuzuf&uuml;gen.
+        Noch keine Websites. Tippe auf &ldquo;+ Website&rdquo; um eine hinzuzuf&uuml;gen.
       </p>
     </section>
 
@@ -71,23 +73,26 @@
       </div>
     </div>
 
-    <!-- ── Shortcut modal (add/edit) ── -->
+    <!-- ── Website modal (add/edit) ── -->
     <div id="shortcut-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <div class="modal-header">
-          <h2 id="shortcut-modal-title">Shortcut hinzuf&uuml;gen</h2>
+          <h2 id="shortcut-modal-title">Website hinzuf&uuml;gen</h2>
           <button id="shortcut-modal-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
         </div>
         <form id="shortcut-form" class="modal-form">
           <input id="sc-id" type="hidden" />
           <div class="field">
-            <label for="sc-title">Name *</label>
-            <input id="sc-title" placeholder="z.B. Jellyfin" required />
+            <label for="sc-url">URL *</label>
+            <div class="url-field-row">
+              <input id="sc-url" type="url" placeholder="https://beispiel.de" required />
+              <button type="button" id="sc-fetch-favicon" class="btn-secondary btn-sm">Favicon</button>
+            </div>
           </div>
           <div class="field">
-            <label for="sc-url">URL *</label>
-            <input id="sc-url" type="url" placeholder="http://192.168.1.100:8096" required />
+            <label for="sc-title">Name *</label>
+            <input id="sc-title" placeholder="z.B. Jellyfin" required />
           </div>
           <div class="field">
             <label for="sc-description">Beschreibung</label>

@@ -502,6 +502,13 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   padding-top: 0.25rem;
 }
 
+.url-field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.url-field-row input { flex: 1; }
+
 .image-preview {
   display: flex;
   align-items: center;

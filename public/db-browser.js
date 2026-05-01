@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = "myownhub";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let _db = null;
 
 // ─── Open DB ─────────────────────────────────────────────────
@@ -22,7 +22,11 @@ function openDb() {
         bs.createIndex("added_at", "added_at");
       }
       if (!db.objectStoreNames.contains("shortcuts")) {
-        db.createObjectStore("shortcuts", { keyPath: "id", autoIncrement: true });
+        const ss = db.createObjectStore("shortcuts", { keyPath: "id", autoIncrement: true });
+        ss.createIndex("added_at", "added_at");
+      } else if (e.oldVersion < 2) {
+        const ss = e.target.transaction.objectStore("shortcuts");
+        if (!ss.indexNames.contains("added_at")) ss.createIndex("added_at", "added_at");
       }
       if (!db.objectStoreNames.contains("files")) {
         // Fallback file storage when OPFS unavailable

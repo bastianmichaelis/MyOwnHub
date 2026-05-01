@@ -8,6 +8,7 @@ let _books = [];
 let _shortcuts = [];
 let _currentView = "library";
 let _toastTimer = null;
+let _installPrompt = null;
 
 // ═══════════════════════════════════════════════════════════════
 // Boot
@@ -15,6 +16,7 @@ let _toastTimer = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   registerSW();
+  wireInstallPrompt();
   await Promise.all([refreshBooks(), refreshShortcuts()]);
   renderCurrentView();
   wireNav();
@@ -28,6 +30,30 @@ function registerSW() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("SW:", e));
   }
+}
+
+function wireInstallPrompt() {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    _installPrompt = e;
+    document.getElementById("install-btn").classList.remove("hidden");
+  });
+
+  document.getElementById("install-btn").addEventListener("click", async () => {
+    if (!_installPrompt) return;
+    _installPrompt.prompt();
+    const { outcome } = await _installPrompt.userChoice;
+    if (outcome === "accepted") {
+      document.getElementById("install-btn").classList.add("hidden");
+      _installPrompt = null;
+    }
+  });
+
+  window.addEventListener("appinstalled", () => {
+    document.getElementById("install-btn").classList.add("hidden");
+    _installPrompt = null;
+    toast("App installiert!");
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -63,13 +89,13 @@ function switchView(name) {
     v.classList.toggle("active", v.id === `view-${name}`),
   );
   document.getElementById("upload-label").classList.toggle("hidden", name !== "library");
-  document.getElementById("add-shortcut-btn").classList.toggle("hidden", name !== "shortcuts");
+  document.getElementById("add-shortcut-btn").classList.toggle("hidden", name !== "websites");
   renderCurrentView();
 }
 
 function renderCurrentView() {
   if (_currentView === "library") renderLibrary(_books);
-  if (_currentView === "shortcuts") renderShortcuts(_shortcuts);
+  if (_currentView === "websites") renderShortcuts(_shortcuts);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -374,7 +400,7 @@ function createShortcutCard(sc) {
     await deleteShortcut(sc.id);
     await refreshShortcuts();
     renderShortcuts(_shortcuts);
-    toast("Shortcut gelöscht.");
+    toast("Website gelöscht.");
   });
 
   actions.append(openBtn, editBtn, delBtn);
@@ -398,6 +424,19 @@ function wireShortcutModal() {
     document.getElementById("sc-image").value = "";
   });
 
+  document.getElementById("sc-fetch-favicon").addEventListener("click", async () => {
+    const url = document.getElementById("sc-url").value.trim();
+    if (!url) { toast("Bitte zuerst eine URL eingeben.", true); return; }
+    const favicon = await fetchFavicon(url);
+    if (favicon) {
+      document.getElementById("sc-image-current").src = favicon;
+      document.getElementById("sc-image-preview").classList.remove("hidden");
+      toast("Favicon geladen.");
+    } else {
+      toast("Kein Favicon gefunden.", true);
+    }
+  });
+
   document.getElementById("shortcut-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("sc-id").value;
@@ -409,9 +448,11 @@ function wireShortcutModal() {
       ? (_shortcuts.find((s) => s.id === Number(id))?.image_b64 ?? null)
       : null;
 
-    // Check if image was removed
     if (document.getElementById("sc-image-preview").classList.contains("hidden")) {
       image_b64 = null;
+    } else {
+      const currentSrc = document.getElementById("sc-image-current").src;
+      if (currentSrc && currentSrc.startsWith("data:")) image_b64 = currentSrc;
     }
 
     const imgFile = document.getElementById("sc-image").files[0];
@@ -423,11 +464,12 @@ function wireShortcutModal() {
 
     if (id) {
       await updateShortcut(Number(id), data);
-      toast("Shortcut aktualisiert.");
+      toast("Website aktualisiert.");
     } else {
       data.sort_order = _shortcuts.length;
+      data.added_at = new Date().toISOString();
       await addShortcut(data);
-      toast("Shortcut hinzugefügt.");
+      toast("Website gespeichert.");
     }
 
     closeShortcutModal();
@@ -436,10 +478,28 @@ function wireShortcutModal() {
   });
 }
 
+async function fetchFavicon(url) {
+  try {
+    const origin = new URL(url).origin;
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(origin)}&sz=64`;
+    const res = await fetch(faviconUrl);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 function openShortcutModal(sc) {
   document.getElementById("sc-id").value = sc ? sc.id : "";
-  document.getElementById("sc-title").value = sc?.title ?? "";
   document.getElementById("sc-url").value = sc?.url ?? "";
+  document.getElementById("sc-title").value = sc?.title ?? "";
   document.getElementById("sc-description").value = sc?.description ?? "";
   document.getElementById("sc-image").value = "";
 
@@ -454,8 +514,8 @@ function openShortcutModal(sc) {
   }
 
   document.getElementById("shortcut-modal-title").textContent = sc
-    ? "Shortcut bearbeiten"
-    : "Shortcut hinzufügen";
+    ? "Website bearbeiten"
+    : "Website hinzufügen";
   document.getElementById("shortcut-modal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
