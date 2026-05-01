@@ -1,4 +1,4 @@
-const CACHE = "myownhub-v1";
+const CACHE = "myownhub-v2";
 
 const PRECACHE = [
   "/",
@@ -6,10 +6,7 @@ const PRECACHE = [
   "/manifest.json",
   "/styles.css",
   "/db-browser.js",
-  "/epub-parser.js",
-  "/reader.js",
   "/app.js",
-  "/lib/epub.min.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
@@ -35,7 +32,6 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
-  // Only cache same-origin requests
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return;
 

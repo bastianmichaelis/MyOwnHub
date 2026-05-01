@@ -1,36 +1,26 @@
 "use strict";
 
-// ═══════════════════════════════════════════════════════════════
-// State
-// ═══════════════════════════════════════════════════════════════
-
-let _books = [];
-let _shortcuts = [];
-let _currentView = "library";
+let _websites = [];
 let _toastTimer = null;
 let _installPrompt = null;
-
-// ═══════════════════════════════════════════════════════════════
-// Boot
-// ═══════════════════════════════════════════════════════════════
 
 document.addEventListener("DOMContentLoaded", async () => {
   registerSW();
   wireInstallPrompt();
-  await Promise.all([refreshBooks(), refreshShortcuts()]);
-  renderCurrentView();
-  wireNav();
-  wireUpload();
-  wireSearch();
-  wireShortcutModal();
-  wireBookEditModal();
+  await refresh();
+  render();
+  wireModal();
 });
+
+// ── Service Worker ─────────────────────────────────────────
 
 function registerSW() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("SW:", e));
   }
 }
+
+// ── PWA Install ────────────────────────────────────────────
 
 function wireInstallPrompt() {
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -56,320 +46,64 @@ function wireInstallPrompt() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Data helpers
-// ═══════════════════════════════════════════════════════════════
+// ── Data ───────────────────────────────────────────────────
 
-async function refreshBooks() {
-  _books = await getAllBooks();
-  _books.sort((a, b) => (a.title || "").localeCompare(b.title || "", "de"));
+async function refresh() {
+  _websites = await getAllWebsites();
+  _websites.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
-async function refreshShortcuts() {
-  _shortcuts = await getAllShortcuts();
-  _shortcuts.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-}
+// ── Render ─────────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════════════════════
-// Navigation
-// ═══════════════════════════════════════════════════════════════
-
-function wireNav() {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.addEventListener("click", () => switchView(btn.dataset.view));
-  });
-}
-
-function switchView(name) {
-  _currentView = name;
-  document.querySelectorAll(".nav-btn").forEach((b) =>
-    b.classList.toggle("active", b.dataset.view === name),
-  );
-  document.querySelectorAll(".view").forEach((v) =>
-    v.classList.toggle("active", v.id === `view-${name}`),
-  );
-  document.getElementById("upload-label").classList.toggle("hidden", name !== "library");
-  document.getElementById("add-shortcut-btn").classList.toggle("hidden", name !== "websites");
-  renderCurrentView();
-}
-
-function renderCurrentView() {
-  if (_currentView === "library") renderLibrary(_books);
-  if (_currentView === "websites") renderShortcuts(_shortcuts);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Library view
-// ═══════════════════════════════════════════════════════════════
-
-function renderLibrary(books) {
-  const grid = document.getElementById("book-grid");
-  const empty = document.getElementById("library-empty");
+function render() {
+  const grid = document.getElementById("websites-grid");
+  const empty = document.getElementById("websites-empty");
   grid.innerHTML = "";
 
-  if (books.length === 0) {
+  if (_websites.length === 0) {
     empty.classList.remove("hidden");
     return;
   }
   empty.classList.add("hidden");
 
-  for (const book of books) {
-    grid.appendChild(createBookCard(book));
+  for (const site of _websites) {
+    grid.appendChild(createCard(site));
   }
 }
 
-function createBookCard(book) {
-  const card = document.createElement("div");
-  card.className = "book-card";
-
-  // Cover
-  const coverWrap = document.createElement("div");
-  coverWrap.className = "book-cover-wrap";
-  if (book.cover_b64) {
-    const img = document.createElement("img");
-    img.className = "book-cover";
-    img.src = book.cover_b64;
-    img.alt = book.title;
-    img.loading = "lazy";
-    coverWrap.appendChild(img);
-  } else {
-    const ph = document.createElement("div");
-    ph.className = "book-cover-placeholder";
-    ph.setAttribute("aria-hidden", "true");
-    ph.textContent = book.format === "pdf" ? "📄" : "📚";
-    coverWrap.appendChild(ph);
-  }
-
-  // Badge
-  if (book.format === "pdf") {
-    const badge = document.createElement("span");
-    badge.className = "format-badge";
-    badge.textContent = "PDF";
-    coverWrap.appendChild(badge);
-  }
-
-  // Open on cover click
-  coverWrap.addEventListener("click", () => openBook(book.id));
-
-  // Info
-  const info = document.createElement("div");
-  info.className = "book-info";
-
-  const title = document.createElement("div");
-  title.className = "book-title";
-  title.textContent = book.title || "Unbekannt";
-
-  const authors = document.createElement("div");
-  authors.className = "book-authors";
-  authors.textContent = Array.isArray(book.authors) ? book.authors.join(", ") : "";
-
-  // Actions (long-press menu or buttons)
-  const actions = document.createElement("div");
-  actions.className = "book-actions";
-
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.className = "book-action-btn";
-  editBtn.title = "Bearbeiten";
-  editBtn.innerHTML = "&#9998;";
-  editBtn.addEventListener("click", (e) => { e.stopPropagation(); openBookEditModal(book); });
-
-  const delBtn = document.createElement("button");
-  delBtn.type = "button";
-  delBtn.className = "book-action-btn danger";
-  delBtn.title = "Löschen";
-  delBtn.innerHTML = "&#x2715;";
-  delBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (!confirm(`"${book.title}" wirklich löschen?`)) return;
-    await deleteBook(book.id);
-    await deleteBookFile(book.id);
-    await refreshBooks();
-    renderLibrary(filterBooks(document.getElementById("book-search").value));
-    toast("Buch gelöscht.");
-  });
-
-  actions.append(editBtn, delBtn);
-  info.append(title, authors);
-  card.append(coverWrap, info, actions);
-  return card;
-}
-
-function filterBooks(query) {
-  if (!query.trim()) return _books;
-  const q = query.toLowerCase();
-  return _books.filter(
-    (b) =>
-      (b.title || "").toLowerCase().includes(q) ||
-      (b.authors || []).join(" ").toLowerCase().includes(q),
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Search
-// ═══════════════════════════════════════════════════════════════
-
-function wireSearch() {
-  const input = document.getElementById("book-search");
-  input.addEventListener("input", () => renderLibrary(filterBooks(input.value)));
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Upload
-// ═══════════════════════════════════════════════════════════════
-
-function wireUpload() {
-  const input = document.getElementById("book-upload");
-  input.addEventListener("change", async () => {
-    const files = Array.from(input.files);
-    if (!files.length) return;
-    input.value = "";
-    await importFiles(files);
-  });
-}
-
-async function importFiles(files) {
-  const overlay = document.getElementById("upload-overlay");
-  const status = document.getElementById("upload-status");
-  overlay.classList.remove("hidden");
-
-  let ok = 0;
-  let fail = 0;
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    status.textContent = `Importiere ${i + 1} / ${files.length}: ${file.name}`;
-    try {
-      const meta = await parseBookFile(file);
-      if (meta.cover_b64) {
-        meta.cover_b64 = await resizeCover(meta.cover_b64, 400);
-      }
-      const ab = await file.arrayBuffer();
-      const id = await addBook(meta);
-      await saveBookFile(id, ab);
-      ok++;
-    } catch (e) {
-      console.error("Import error:", e);
-      fail++;
-    }
-  }
-
-  overlay.classList.add("hidden");
-  await refreshBooks();
-  renderLibrary(_books);
-  if (fail === 0) toast(`${ok} Buch${ok !== 1 ? "er" : ""} importiert.`);
-  else toast(`${ok} importiert, ${fail} fehlgeschlagen.`, true);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Book edit modal
-// ═══════════════════════════════════════════════════════════════
-
-function wireBookEditModal() {
-  document.getElementById("book-edit-close").addEventListener("click", closeBookEditModal);
-  document.getElementById("book-edit-cancel").addEventListener("click", closeBookEditModal);
-  document.querySelector("#book-edit-modal .modal-backdrop").addEventListener("click", closeBookEditModal);
-
-  document.getElementById("book-edit-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = Number(document.getElementById("be-id").value);
-    const title = document.getElementById("be-title").value.trim();
-    const authors = document.getElementById("be-authors").value
-      .split(",").map((a) => a.trim()).filter(Boolean);
-
-    const patch = { title, authors };
-
-    const coverFile = document.getElementById("be-cover").files[0];
-    if (coverFile) {
-      patch.cover_b64 = await imageFileToBase64(coverFile, 400);
-    }
-
-    await updateBook(id, patch);
-    closeBookEditModal();
-    await refreshBooks();
-    renderLibrary(filterBooks(document.getElementById("book-search").value));
-    toast("Buch aktualisiert.");
-  });
-}
-
-function openBookEditModal(book) {
-  document.getElementById("be-id").value = book.id;
-  document.getElementById("be-title").value = book.title || "";
-  document.getElementById("be-authors").value = (book.authors || []).join(", ");
-  document.getElementById("be-cover").value = "";
-
-  const preview = document.getElementById("be-cover-preview");
-  const img = document.getElementById("be-cover-current");
-  if (book.cover_b64) {
-    img.src = book.cover_b64;
-    preview.classList.remove("hidden");
-  } else {
-    preview.classList.add("hidden");
-  }
-
-  document.getElementById("book-edit-modal").classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeBookEditModal() {
-  document.getElementById("book-edit-modal").classList.add("hidden");
-  document.body.style.overflow = "";
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Shortcuts view
-// ═══════════════════════════════════════════════════════════════
-
-function renderShortcuts(shortcuts) {
-  const grid = document.getElementById("shortcuts-grid");
-  const empty = document.getElementById("shortcuts-empty");
-  grid.innerHTML = "";
-
-  if (shortcuts.length === 0) {
-    empty.classList.remove("hidden");
-    return;
-  }
-  empty.classList.add("hidden");
-
-  for (const sc of shortcuts) {
-    grid.appendChild(createShortcutCard(sc));
-  }
-}
-
-function createShortcutCard(sc) {
+function createCard(site) {
   const card = document.createElement("div");
   card.className = "service-card";
 
   const header = document.createElement("div");
   header.className = "card-header";
 
-  // Image / avatar
   const imgWrap = document.createElement("div");
   imgWrap.className = "card-img-wrap";
-  if (sc.image_b64) {
+  if (site.image_b64) {
     const img = document.createElement("img");
-    img.src = sc.image_b64;
-    img.alt = sc.title;
+    img.src = site.image_b64;
+    img.alt = site.title;
     img.className = "card-img";
     img.addEventListener("error", () => {
       imgWrap.innerHTML = "";
-      imgWrap.appendChild(makeLetterAvatar(sc.title));
+      imgWrap.appendChild(makeLetterAvatar(site.title));
     });
     imgWrap.appendChild(img);
   } else {
-    imgWrap.appendChild(makeLetterAvatar(sc.title));
+    imgWrap.appendChild(makeLetterAvatar(site.title));
   }
 
   const info = document.createElement("div");
   info.className = "card-info";
   const title = document.createElement("div");
   title.className = "card-title";
-  title.textContent = sc.title;
+  title.textContent = site.title;
   info.appendChild(title);
-  if (sc.description) {
+  if (site.description) {
     const desc = document.createElement("p");
     desc.className = "card-desc";
-    desc.textContent = sc.description;
+    desc.textContent = site.description;
     info.appendChild(desc);
   }
 
@@ -379,7 +113,7 @@ function createShortcutCard(sc) {
   actions.className = "card-actions";
 
   const openBtn = document.createElement("a");
-  openBtn.href = sc.url;
+  openBtn.href = site.url;
   openBtn.target = "_blank";
   openBtn.rel = "noopener noreferrer";
   openBtn.className = "btn-primary btn-sm";
@@ -389,17 +123,17 @@ function createShortcutCard(sc) {
   editBtn.type = "button";
   editBtn.className = "btn-edit btn-sm";
   editBtn.textContent = "Bearbeiten";
-  editBtn.addEventListener("click", () => openShortcutModal(sc));
+  editBtn.addEventListener("click", () => openModal(site));
 
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "btn-danger btn-sm";
   delBtn.textContent = "✕";
   delBtn.addEventListener("click", async () => {
-    if (!confirm(`"${sc.title}" löschen?`)) return;
-    await deleteShortcut(sc.id);
-    await refreshShortcuts();
-    renderShortcuts(_shortcuts);
+    if (!confirm(`"${site.title}" löschen?`)) return;
+    await deleteWebsite(site.id);
+    await refresh();
+    render();
     toast("Website gelöscht.");
   });
 
@@ -408,54 +142,52 @@ function createShortcutCard(sc) {
   return card;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Shortcut modal
-// ═══════════════════════════════════════════════════════════════
+// ── Modal ──────────────────────────────────────────────────
 
-function wireShortcutModal() {
-  document.getElementById("add-shortcut-btn").addEventListener("click", () => openShortcutModal(null));
-  document.getElementById("shortcut-modal-close").addEventListener("click", closeShortcutModal);
-  document.getElementById("shortcut-modal-cancel").addEventListener("click", closeShortcutModal);
-  document.querySelector("#shortcut-modal .modal-backdrop").addEventListener("click", closeShortcutModal);
+function wireModal() {
+  document.getElementById("add-website-btn").addEventListener("click", () => openModal(null));
+  document.getElementById("website-modal-close").addEventListener("click", closeModal);
+  document.getElementById("website-modal-cancel").addEventListener("click", closeModal);
+  document.querySelector("#website-modal .modal-backdrop").addEventListener("click", closeModal);
 
-  document.getElementById("sc-image-remove").addEventListener("click", () => {
-    document.getElementById("sc-image-preview").classList.add("hidden");
-    document.getElementById("sc-image-current").src = "";
-    document.getElementById("sc-image").value = "";
+  document.getElementById("ws-image-remove").addEventListener("click", () => {
+    document.getElementById("ws-image-preview").classList.add("hidden");
+    document.getElementById("ws-image-current").src = "";
+    document.getElementById("ws-image").value = "";
   });
 
-  document.getElementById("sc-fetch-favicon").addEventListener("click", async () => {
-    const url = document.getElementById("sc-url").value.trim();
+  document.getElementById("ws-fetch-favicon").addEventListener("click", async () => {
+    const url = document.getElementById("ws-url").value.trim();
     if (!url) { toast("Bitte zuerst eine URL eingeben.", true); return; }
     const favicon = await fetchFavicon(url);
     if (favicon) {
-      document.getElementById("sc-image-current").src = favicon;
-      document.getElementById("sc-image-preview").classList.remove("hidden");
+      document.getElementById("ws-image-current").src = favicon;
+      document.getElementById("ws-image-preview").classList.remove("hidden");
       toast("Favicon geladen.");
     } else {
       toast("Kein Favicon gefunden.", true);
     }
   });
 
-  document.getElementById("shortcut-form").addEventListener("submit", async (e) => {
+  document.getElementById("website-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const id = document.getElementById("sc-id").value;
-    const title = document.getElementById("sc-title").value.trim();
-    const url = document.getElementById("sc-url").value.trim();
-    const description = document.getElementById("sc-description").value.trim();
+    const id = document.getElementById("ws-id").value;
+    const title = document.getElementById("ws-title").value.trim();
+    const url = document.getElementById("ws-url").value.trim();
+    const description = document.getElementById("ws-description").value.trim();
 
     let image_b64 = id
-      ? (_shortcuts.find((s) => s.id === Number(id))?.image_b64 ?? null)
+      ? (_websites.find((s) => s.id === Number(id))?.image_b64 ?? null)
       : null;
 
-    if (document.getElementById("sc-image-preview").classList.contains("hidden")) {
+    if (document.getElementById("ws-image-preview").classList.contains("hidden")) {
       image_b64 = null;
     } else {
-      const currentSrc = document.getElementById("sc-image-current").src;
-      if (currentSrc && currentSrc.startsWith("data:")) image_b64 = currentSrc;
+      const src = document.getElementById("ws-image-current").src;
+      if (src && src.startsWith("data:")) image_b64 = src;
     }
 
-    const imgFile = document.getElementById("sc-image").files[0];
+    const imgFile = document.getElementById("ws-image").files[0];
     if (imgFile) {
       image_b64 = await imageFileToBase64(imgFile, 256);
     }
@@ -463,20 +195,51 @@ function wireShortcutModal() {
     const data = { title, url, description, image_b64 };
 
     if (id) {
-      await updateShortcut(Number(id), data);
+      await updateWebsite(Number(id), data);
       toast("Website aktualisiert.");
     } else {
-      data.sort_order = _shortcuts.length;
+      data.sort_order = _websites.length;
       data.added_at = new Date().toISOString();
-      await addShortcut(data);
+      await addWebsite(data);
       toast("Website gespeichert.");
     }
 
-    closeShortcutModal();
-    await refreshShortcuts();
-    renderShortcuts(_shortcuts);
+    closeModal();
+    await refresh();
+    render();
   });
 }
+
+function openModal(site) {
+  document.getElementById("ws-id").value = site ? site.id : "";
+  document.getElementById("ws-url").value = site?.url ?? "";
+  document.getElementById("ws-title").value = site?.title ?? "";
+  document.getElementById("ws-description").value = site?.description ?? "";
+  document.getElementById("ws-image").value = "";
+
+  const preview = document.getElementById("ws-image-preview");
+  const img = document.getElementById("ws-image-current");
+  if (site?.image_b64) {
+    img.src = site.image_b64;
+    preview.classList.remove("hidden");
+  } else {
+    preview.classList.add("hidden");
+    img.src = "";
+  }
+
+  document.getElementById("website-modal-title").textContent = site
+    ? "Website bearbeiten"
+    : "Website hinzufügen";
+  document.getElementById("website-modal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal() {
+  document.getElementById("website-modal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+// ── Favicon fetch ──────────────────────────────────────────
 
 async function fetchFavicon(url) {
   try {
@@ -496,38 +259,7 @@ async function fetchFavicon(url) {
   }
 }
 
-function openShortcutModal(sc) {
-  document.getElementById("sc-id").value = sc ? sc.id : "";
-  document.getElementById("sc-url").value = sc?.url ?? "";
-  document.getElementById("sc-title").value = sc?.title ?? "";
-  document.getElementById("sc-description").value = sc?.description ?? "";
-  document.getElementById("sc-image").value = "";
-
-  const preview = document.getElementById("sc-image-preview");
-  const img = document.getElementById("sc-image-current");
-  if (sc?.image_b64) {
-    img.src = sc.image_b64;
-    preview.classList.remove("hidden");
-  } else {
-    preview.classList.add("hidden");
-    img.src = "";
-  }
-
-  document.getElementById("shortcut-modal-title").textContent = sc
-    ? "Website bearbeiten"
-    : "Website hinzufügen";
-  document.getElementById("shortcut-modal").classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeShortcutModal() {
-  document.getElementById("shortcut-modal").classList.add("hidden");
-  document.body.style.overflow = "";
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Utilities
-// ═══════════════════════════════════════════════════════════════
+// ── Utilities ──────────────────────────────────────────────
 
 function makeLetterAvatar(title) {
   const div = document.createElement("div");
@@ -541,6 +273,25 @@ function stringToHue(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
   return Math.abs(h) % 360;
+}
+
+async function imageFileToBase64(file, maxPx) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function toast(text, isError = false) {

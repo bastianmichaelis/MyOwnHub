@@ -1,7 +1,7 @@
 {
   "name": "MyOwnHub",
   "short_name": "MyOwnHub",
-  "description": "Offline-Bibliothek & Website-Verwaltung",
+  "description": "Deine gespeicherten Websites – immer griffbereit",
   "lang": "de",
   "start_url": "/",
   "scope": "/",

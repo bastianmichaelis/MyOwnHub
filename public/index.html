@@ -20,147 +20,65 @@
     <!-- ── Top bar ── -->
     <header class="topbar">
       <div class="topbar-brand">MyOwnHub</div>
-      <nav class="topbar-nav" aria-label="Navigation">
-        <button class="nav-btn active" data-view="library">Bibliothek</button>
-        <button class="nav-btn" data-view="websites">Websites</button>
-      </nav>
       <div class="topbar-right">
-        <!-- Library: file upload trigger -->
-        <label id="upload-label" class="btn-primary btn-sm" role="button" tabindex="0" title="Bücher importieren">
-          + Buch
-          <input id="book-upload" type="file" accept=".epub,.pdf" multiple hidden />
-        </label>
-        <!-- Websites: add button (hidden when not on websites view) -->
-        <button id="add-shortcut-btn" class="btn-primary btn-sm hidden">+ Website</button>
-        <!-- PWA install button (shown only when installable) -->
+        <button id="add-website-btn" class="btn-primary btn-sm">+ Website</button>
         <button id="install-btn" class="btn-secondary btn-sm hidden" title="App installieren">&#8681; App</button>
       </div>
     </header>
 
-    <!-- ── Library view ── -->
-    <section id="view-library" class="view active">
-      <div class="view-toolbar">
-        <input id="book-search" type="search" placeholder="Titel oder Autor suchen&hellip;" />
-      </div>
-      <div id="book-grid" class="book-grid"></div>
-      <p id="library-empty" class="empty-msg hidden">
-        Noch keine B&uuml;cher. Tippe auf &ldquo;+ Buch&rdquo; zum Importieren.
-      </p>
-    </section>
-
     <!-- ── Websites view ── -->
-    <section id="view-websites" class="view">
-      <div id="shortcuts-grid" class="service-grid"></div>
-      <p id="shortcuts-empty" class="empty-msg hidden">
-        Noch keine Websites. Tippe auf &ldquo;+ Website&rdquo; um eine hinzuzuf&uuml;gen.
+    <main>
+      <div id="websites-grid" class="service-grid"></div>
+      <p id="websites-empty" class="empty-msg hidden">
+        Noch keine Websites gespeichert.<br>Tippe auf &ldquo;+ Website&rdquo; um eine hinzuzuf&uuml;gen.
       </p>
-    </section>
-
-    <!-- ── EPUB Reader modal ── -->
-    <div id="reader-modal" class="reader-modal hidden" role="dialog" aria-modal="true" aria-label="Buchleser">
-      <div class="reader-toolbar">
-        <button id="reader-close" class="reader-btn" aria-label="Schlie&szlig;en">&#x2715;</button>
-        <span id="reader-title" class="reader-title-text"></span>
-        <div class="reader-controls">
-          <button id="reader-font-minus" class="reader-btn" aria-label="Schrift kleiner">A&minus;</button>
-          <button id="reader-font-plus"  class="reader-btn" aria-label="Schrift gr&ouml;&szlig;er">A+</button>
-        </div>
-      </div>
-      <div class="reader-body">
-        <button id="reader-prev" class="reader-page-btn reader-page-prev" aria-label="Vorherige Seite">&#8249;</button>
-        <div id="reader-viewer" class="reader-viewer"></div>
-        <button id="reader-next" class="reader-page-btn reader-page-next" aria-label="N&auml;chste Seite">&#8250;</button>
-      </div>
-    </div>
+    </main>
 
     <!-- ── Website modal (add/edit) ── -->
-    <div id="shortcut-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div id="website-modal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-backdrop"></div>
       <div class="modal-content">
         <div class="modal-header">
-          <h2 id="shortcut-modal-title">Website hinzuf&uuml;gen</h2>
-          <button id="shortcut-modal-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
+          <h2 id="website-modal-title">Website hinzuf&uuml;gen</h2>
+          <button id="website-modal-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
         </div>
-        <form id="shortcut-form" class="modal-form">
-          <input id="sc-id" type="hidden" />
+        <form id="website-form" class="modal-form">
+          <input id="ws-id" type="hidden" />
           <div class="field">
-            <label for="sc-url">URL *</label>
+            <label for="ws-url">URL *</label>
             <div class="url-field-row">
-              <input id="sc-url" type="url" placeholder="https://beispiel.de" required />
-              <button type="button" id="sc-fetch-favicon" class="btn-secondary btn-sm">Favicon</button>
+              <input id="ws-url" type="url" placeholder="https://beispiel.de" required />
+              <button type="button" id="ws-fetch-favicon" class="btn-secondary btn-sm">Favicon</button>
             </div>
           </div>
           <div class="field">
-            <label for="sc-title">Name *</label>
-            <input id="sc-title" placeholder="z.B. Jellyfin" required />
+            <label for="ws-title">Name *</label>
+            <input id="ws-title" placeholder="z.B. Jellyfin" required />
           </div>
           <div class="field">
-            <label for="sc-description">Beschreibung</label>
-            <input id="sc-description" placeholder="Kurze Beschreibung (optional)" />
+            <label for="ws-description">Beschreibung</label>
+            <input id="ws-description" placeholder="Kurze Beschreibung (optional)" />
           </div>
           <div class="field">
-            <label for="sc-image">Bild (optional)</label>
-            <input id="sc-image" type="file" accept="image/*" />
-            <div id="sc-image-preview" class="image-preview hidden">
-              <img id="sc-image-current" src="" alt="" />
-              <button type="button" id="sc-image-remove" class="btn-danger btn-sm">Entfernen</button>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Speichern</button>
-            <button type="button" id="shortcut-modal-cancel" class="btn-secondary">Abbrechen</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- ── Book edit modal ── -->
-    <div id="book-edit-modal" class="modal hidden" role="dialog" aria-modal="true">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Buch bearbeiten</h2>
-          <button id="book-edit-close" class="btn-close" aria-label="Schlie&szlig;en">&#x2715;</button>
-        </div>
-        <form id="book-edit-form" class="modal-form">
-          <input id="be-id" type="hidden" />
-          <div class="field">
-            <label for="be-title">Titel</label>
-            <input id="be-title" required />
-          </div>
-          <div class="field">
-            <label for="be-authors">Autor(en)</label>
-            <input id="be-authors" placeholder="Autor 1, Autor 2" />
-          </div>
-          <div class="field">
-            <label for="be-cover">Cover ersetzen</label>
-            <input id="be-cover" type="file" accept="image/*" />
-            <div id="be-cover-preview" class="image-preview hidden">
-              <img id="be-cover-current" src="" alt="" />
+            <label for="ws-image">Bild (optional)</label>
+            <input id="ws-image" type="file" accept="image/*" />
+            <div id="ws-image-preview" class="image-preview hidden">
+              <img id="ws-image-current" src="" alt="" />
+              <button type="button" id="ws-image-remove" class="btn-danger btn-sm">Entfernen</button>
             </div>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn-primary">Speichern</button>
-            <button type="button" id="book-edit-cancel" class="btn-secondary">Abbrechen</button>
+            <button type="button" id="website-modal-cancel" class="btn-secondary">Abbrechen</button>
           </div>
         </form>
       </div>
-    </div>
-
-    <!-- ── Upload progress overlay ── -->
-    <div id="upload-overlay" class="upload-overlay hidden">
-      <div class="upload-spinner"></div>
-      <p id="upload-status">Importiere&hellip;</p>
     </div>
 
     <!-- ── Toast ── -->
     <div id="toast" class="toast" aria-live="polite"></div>
 
-    <!-- Scripts (order matters: epub.min.js must come first) -->
-    <script src="/lib/epub.min.js"></script>
     <script src="/db-browser.js"></script>
-    <script src="/epub-parser.js"></script>
-    <script src="/reader.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
