@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>MyOwnHub – Login</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        background: #0f1117;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+
+      .card {
+        background: #1a1f2e;
+        border: 1px solid #2d3748;
+        border-radius: 16px;
+        padding: 2rem 2rem 1.75rem;
+        width: 100%;
+        max-width: 360px;
+      }
+
+      .brand {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #4f8ef7;
+        text-align: center;
+        margin-bottom: 1.75rem;
+        letter-spacing: -0.02em;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 1rem;
+      }
+
+      label {
+        font-size: 0.82rem;
+        color: #94a3b8;
+        font-weight: 500;
+      }
+
+      input {
+        background: #222840;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        padding: 0.65rem 0.85rem;
+        color: #e2e8f0;
+        font: inherit;
+        font-size: 1rem;
+        width: 100%;
+        transition: border-color 0.15s;
+        -webkit-appearance: none;
+      }
+      input:focus {
+        outline: none;
+        border-color: #4f8ef7;
+      }
+
+      button[type="submit"] {
+        width: 100%;
+        background: #4f8ef7;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem;
+        font: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 0.5rem;
+        transition: background 0.15s;
+      }
+      button[type="submit"]:active { background: #3b7ef5; }
+
+      .error {
+        background: rgba(248, 113, 113, 0.1);
+        border: 1px solid #f87171;
+        border-radius: 8px;
+        color: #f87171;
+        font-size: 0.88rem;
+        padding: 0.6rem 0.85rem;
+        margin-bottom: 1rem;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand">MyOwnHub</div>
+
+      <div id="error-msg" class="error" style="display:none">
+        Falscher Benutzername oder Passwort.
+      </div>
+
+      <form method="POST" action="/login">
+        <div class="field">
+          <label for="username">Benutzername</label>
+          <input id="username" name="username" type="text" autocomplete="username" autofocus required />
+        </div>
+        <div class="field">
+          <label for="password">Passwort</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit">Anmelden</button>
+      </form>
+    </div>
+
+    <script>
+      if (location.search.includes("error=1")) {
+        document.getElementById("error-msg").style.display = "block";
+      }
+    </script>
+  </body>
+</html>

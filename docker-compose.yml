@@ -4,10 +4,10 @@ services:
     image: myownhub:latest
     container_name: myownhub
     ports:
-      - "3000:3000"
-    volumes:
-      - ./data:/app/data
-      - ./uploads:/app/public/uploads
+      - "3010:3010"
     environment:
-      - PORT=3000
+      - PORT=3010
+      - LOGIN_USER=admin
+      - LOGIN_PASSWORD=changeme
+      - SESSION_SECRET=bitte-aendern-langer-zufaelliger-string
     restart: unless-stopped

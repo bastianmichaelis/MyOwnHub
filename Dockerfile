@@ -7,8 +7,6 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-RUN mkdir -p public/uploads/servers data
-
-EXPOSE 3000
+EXPOSE 3010
 
 CMD ["node", "server.js"]
